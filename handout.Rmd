@@ -50,7 +50,8 @@ summary_table <- basicStats(data %>%
 
 summary_table$Variable <- c("Age", "Unoccupied", "Solitary play", "Onlooker", "Parallel play", "Associative play", "Cooperative play", "Social participation", "Bossiness", "Positive affect", "Social awkwardness")
 
-kable(summary_table %>% rename(" " = "Variable"), caption = "Summary statistics of dependent variables") %>% 
+kable(summary_table, caption = "Summary statistics of dependent variables",
+      col.names = c("", "Mean (SD)", "Median","Minimum", "Maximum")) %>% 
     kable_styling(latex_options = "hold_position")
 ```
 
