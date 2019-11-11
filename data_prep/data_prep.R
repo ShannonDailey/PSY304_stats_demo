@@ -1,16 +1,20 @@
+# This script imports and cleans up the previous semesters' data (exported from SPSS)
+# as well as the Fall 2019 data, and combines the two into one dataframe.
 
+library(janitor)
 library(tidyverse)
 
-our_data <- read_csv("data_prep/our_data.csv") %>% 
+# Fall 2019 data
+data_f19 <- read_csv("data_prep/data_fall2019.csv") %>% 
   rename(gender = child_gender,
          age = child_age,
          soc_particip = social_participation) %>% 
-  filter(sample == "1") %>% 
-  dplyr::select(-sample, -observer, -child_num) 
+  mutate(sample == as.numeric(sample)) %>% 
+  filter(sample == 1) %>% 
+  dplyr::select(-sample, -observer, -child_num) %>% 
+  add_column(cohort = 7)
 
-our_data$cohort <- 7
-
-our_data_clean <- our_data %>% 
+data_f19_clean <- data_f19 %>% 
   mutate(cohort = factor(cohort),
          gender = fct_recode(factor(gender),
                                     "male" = "m",
@@ -19,11 +23,10 @@ our_data_clean <- our_data %>%
                  unoccupied, solitary, onlooker, parallel, associative, cooperative,
                  soc_particip, bossy, pos_affect, awkward)
 
-summary(our_data_clean)
-head(our_data_clean)
-dim(our_data_clean)
+summary(data_f19_clean)
+head(data_f19_clean)
 
-
+# SPSS export, previous semesters' data
 spss <- read_csv("data_prep/spss_export.csv") %>% 
   mutate(Gender = fct_recode(factor(Gender),
                              "male" = "1",
@@ -36,20 +39,20 @@ spss <- read_csv("data_prep/spss_export.csv") %>%
   rename(soc_particip = socparticip) %>% 
   dplyr::select(-Predom, -degpos, -socawk)
 
-library(janitor)
 spss_clean <- janitor::clean_names(spss, case = "snake") %>% 
   dplyr::select(cohort, gender, age,
                 unoccupied, solitary, onlooker, parallel, associative, cooperative,
                 soc_particip, bossy, pos_affect, awkward)
 
+# Let's merge them
 dim(spss_clean)
 colnames(spss_clean)
 
-dim(our_data_clean)
-colnames(our_data_clean)
+dim(data_f19_clean)
+colnames(data_f19_clean)
 
 demo_data <- spss_clean %>%
-  rbind(our_data_clean) %>% 
+  rbind(data_f19_clean) %>% 
   tibble::rowid_to_column("child")
 
 summary(demo_data)
@@ -73,9 +76,11 @@ exclude <- predom_style %>%
 
 predom_style <- predom_style %>%
   filter(!child %in% exclude) %>% 
-  mutate(predom = factor(predom))
+  mutate(predom = factor(predom,
+                         levels = c("cooperative", "associative", "parallel", "onlooker", "solitary", "unoccupied")))
 
 dim(predom_style)
+summary(predom_style)
 
 data_final <- demo_data %>%
   left_join(predom_style) %>% 
