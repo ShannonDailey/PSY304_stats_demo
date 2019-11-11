@@ -6,9 +6,16 @@ output: pdf_document
 ---
 
 ```{r setup, echo=FALSE, include=FALSE}
+library(fBasics)
 library(knitr)
+library(broom)
+library(kableExtra)
+library(papaja)
 library(tidyverse)
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 5, fig.height = 4, fig.align='center')
+```
+
+```{r read-in-data}
 data <- read_csv("demo_data.csv") %>% 
   mutate(gender = factor(gender),
          predom = factor(predom,
@@ -19,55 +26,69 @@ data <- read_csv("demo_data.csv") %>%
 The dataset includes `r nrow(data)` participants total from 8 different cohorts (that is, 8 semesters of PSY304 students).
 
 ## Age x gender breakdown of participants
-```{r}
+```{r age-gender}
 ages_gender_table <- addmargins(table(data$age, data$gender), FUN = list(Total = sum), quiet = TRUE)
-kable(ages_gender_table, col.names = c("Girls", "Boys","Total"), caption = "Age/gender breakdown of participants")
+
+kable(ages_gender_table, col.names = c("Girls", "Boys","Total"), caption = "Age/gender breakdown of participants") %>% 
+    kable_styling(latex_options = "hold_position")
 ```
 
 ## Summary of dependent variables
 ```{r summary-tab, results='asis'}
-library(fBasics)
-tmp <- basicStats(data %>% dplyr::select(age, unoccupied, solitary, onlooker, parallel, associative, cooperative, soc_particip, bossy, pos_affect, awkward))
-summary_table <- tmp[c("Mean", "Stdev", "Median", "Minimum", "Maximum"),] %>%
-  t() %>%
+
+cols_to_drop <- c("nobs", "NAs", "1. Quartile", "3. Quartile", "Sum", "SE Mean", "LCL Mean", "UCL Mean", "Variance", "Skewness", "Kurtosis")
+
+summary_table <- basicStats(data %>%
+                    dplyr::select(age, unoccupied, solitary, onlooker, parallel, associative,
+                                  cooperative, soc_particip, bossy, pos_affect, awkward)) %>%
+  t() %>% 
   as.data.frame() %>% 
+  rownames_to_column(var = "Variable") %>% 
+  dplyr::select(Variable, Mean, Stdev, Median, Minimum, Maximum) %>% 
   mutate(Mean = paste(round(Mean,2), " (", round(Stdev,2), ")", sep = ""),) %>% 
   dplyr::select(-Stdev)
-rownames(summary_table) <- c("Age", "Unoccupied", "Solitary play", "Onlooker", "Parallel play", "Associative play", "Cooperative play", "Social participation", "Bossiness", "Positive affect", "Social awkwardness")
-kable(summary_table, caption = "Summary statistics of dependent variables")
+
+summary_table$Variable <- c("Age", "Unoccupied", "Solitary play", "Onlooker", "Parallel play", "Associative play", "Cooperative play", "Social participation", "Bossiness", "Positive affect", "Social awkwardness")
+
+kable(summary_table %>% rename(" " = "Variable"), caption = "Summary statistics of dependent variables") %>% 
+    kable_styling(latex_options = "hold_position")
 ```
 
 \newpage
 
 # Predominant play styles
 A child's **predominant play style** is the type of play that child engaged in *the most* during the time sample.
-```{r}
-kable(table(data$predom), col.names = c("Type of play", "Count"), caption = "Number of children with each predominant play style")
+```{r predom-tab}
+kable(table(data$predom), col.names = c("Type of play", "Count"), caption = "Number of children with each predominant play style") %>% 
+    kable_styling(latex_options = "hold_position")
 ```
 
 ## Predominant play style by age
 ```{r predom-age, fig.height=3.5, fig.width=4}
-kable(table(data$predom, data$age), caption = "Predominant play style by age")
+kable(table(data$predom, data$age), caption = "Predominant play style by age") %>% 
+    kable_styling(latex_options = "hold_position")
 
 age_predom_table <- table(data %>% dplyr::select(age, predom))
-library(broom)
 chisq_age <- chisq.test(age_predom_table) %>% tidy()
 
 ggplot(data %>% drop_na(predom), aes(x = age, fill = predom))+
   geom_bar(position = "fill")+
-  labs(y = "Proportion of children", x = "Age (years)", fill = "Predominant play style", title = "Predominant play style by age")
+  labs(y = "Proportion of children", x = "Age (years)",
+       fill = "Predominant play style", title = "Predominant play style by age")
 ```
 
 **Chi-square test**: $\chi^2$(10) = `r round(chisq_age$statistic,2)`, *p* = `r round(chisq_age$p.value,2)`
 
 
 ## Predominant play style by gender
-```{r}
-kable(table(data$predom, data$gender), caption = "Predominant play style by gender")
+```{r predom-gender}
+kable(table(data$predom, data$gender), caption = "Predominant play style by gender") %>% 
+    kable_styling(latex_options = "hold_position")
 
 ggplot(data %>% drop_na(predom), aes(x = gender, fill = predom))+
   geom_bar(position = "fill")+
-  labs(y = "Proportion of children", x = "Gender", fill = "Predominant play style", title = "Predominant play by gender")
+  labs(y = "Proportion of children", x = "Gender",
+       fill = "Predominant play style", title = "Predominant play by gender")
 
 gender_predom_table <- table(data %>% dplyr::select(gender, predom))
 chisq_gend <- chisq.test(gender_predom_table) %>% tidy()
@@ -78,7 +99,7 @@ chisq_gend <- chisq.test(gender_predom_table) %>% tidy()
 \newpage
 # Types of play
 ## Types of play by age
-```{r}
+```{r types-age}
 props_long <- data %>%
   dplyr::select(child,age,gender,prop_unocc:prop_coop) %>% 
   pivot_longer(cols = prop_unocc:prop_coop, names_to = "type_play",
@@ -93,27 +114,19 @@ ggplot(props_long, aes(x = age, y = prop, color = type_play))+
   labs(y = "Proportion of play", x = "Age  (years)", color = "Type of play", title = "Proportion of play types by  age")
 
 aov_age_coop <- aov(prop ~ age, data = (props_long %>% dplyr::filter(type_play == "coop")))
-#summary(aov_age_coop)
-
 aov_age_solitary <- aov(prop ~ age, data = (props_long %>% dplyr::filter(type_play == "solitary")))
-#summary(aov_age_solitary)
 ```
 
-```{r}
-age_by_type_tab_tmp1 <- props_long %>%
+```{r types-age-tab}
+age_by_type_tab <- props_long %>%
   drop_na(age) %>%
   group_by(type_play, age) %>%
   summarise(mean = mean(prop), sd = sd(prop)) %>%
-  pivot_wider(names_from = age, values_from = c(mean, sd))
-
-age_by_type_tab_tmp2 <- age_by_type_tab_tmp1
-
-age_by_type_tab_tmp2$type_play <- c("Cooperative play", "Associative play", "Parallel play", "Onlooker", "Solitary play", "Unoccupied")
-
-age_by_type_tab <- age_by_type_tab_tmp2 %>%
+  pivot_wider(names_from = age, values_from = c(mean, sd)) %>%
   dplyr::select(type_play, mean_3, sd_3, mean_4, sd_4, mean_5, sd_5)
 
-library(kableExtra)
+age_by_type_tab$type_play <- c("Cooperative play", "Associative play", "Parallel play", "Onlooker", "Solitary play", "Unoccupied")
+
 kable(age_by_type_tab,
       digits = 3,
       col.names = c("",
@@ -123,8 +136,6 @@ kable(age_by_type_tab,
       caption = "Proportion of play types by child age") %>% 
   kable_styling(bootstrap_options = "striped", latex_options = "hold_position") %>% 
   add_header_above(c(" " = 1, "3-year-olds" = 2, "4-year-olds" = 2, "5-year-olds" = 2))
-
-library(papaja)
 ```
 
 **ANOVA: Proportion of cooperative play by age**: `r apa_print(aov_age_coop)$statistic`
@@ -133,7 +144,7 @@ library(papaja)
 
 \newpage
 ## Types of play by gender
-```{r type-gender, fig.width=4, fig.height=3}
+```{r types-gender, fig.width=4, fig.height=3}
 props_gender <- props_long %>% group_by(gender,type_play) %>% summarise(mean_prop = mean(prop, na.rm = TRUE))
 
 ggplot(props_long, aes(x = type_play, y = prop, color = gender))+
